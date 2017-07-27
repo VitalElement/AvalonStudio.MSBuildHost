@@ -67,24 +67,24 @@ namespace AvalonStudio.MSBuildHost
             // GenerateAssemblyInfo,_CheckForInvalidConfigurationAndPlatform,BuildOnlySettings,GetFrameworkPaths,BeforeResolveReferences,ResolveAssemblyReferences,ResolveComReferences,ImplicitlyExpandDesignTimeFacades,ResolveSDKReferences
             _buildEngine.BuildProjectFile(projectFile, new[] { "GenerateAssemblyInfo", "_CheckForInvalidConfigurationAndPlatform", "BuildOnlySettings", "GetFrameworkPaths", "BeforeResolveReferences", target, "ResolveComReferences", "ResolveSDKReferences" }, properties, outputs);
 
-            var result = new TaskItems {  Target = target };
+            var result = new TaskItems { Target = target };
 
-             foreach (var item in outputs[target])
-             {
-                 var taskItem = new TaskItem
-                 {
-                     ItemSpec = item.ItemSpec
-                 };
+            foreach (var item in outputs[target])
+            {
+                var taskItem = new TaskItem
+                {
+                    ItemSpec = item.ItemSpec
+                };
 
-                 foreach (string metaData in item.MetadataNames)
-                 {
-                     taskItem.Metadatas.Add(new ProjectTaskMetaData { Name = metaData, Value = item.GetMetadata(metaData) });
-                 }
+                foreach (string metaData in item.MetadataNames)
+                {
+                    var metaDataObj = new ProjectTaskMetaData { Name = metaData.Replace("\0", ""), Value = item.GetMetadata(metaData).Replace("\0", "") };
 
-                 result.Items.Add(taskItem);
+                    taskItem.Metadatas.Add(metaDataObj);
+                }
 
-                break;
-             }
+                result.Items.Add(taskItem);
+            }
 
             return Task.FromResult(new MsBuildHostServiceResponse<TaskItems> { Response = "OK", Data = result });
         }
@@ -112,7 +112,7 @@ namespace AvalonStudio.MSBuildHost
                     }
                 }
             }
-            
+
             return Task.FromResult(new MsBuildHostServiceResponse<List<string>> { Response = "OK", Data = outputs["ResolveAssemblyReferences"].Select(ti => ti.ItemSpec).ToList() });
         }
 
