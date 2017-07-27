@@ -1,5 +1,5 @@
 <Project xmlns='http://schemas.microsoft.com/developer/msbuild/2003'>
- <UsingTask AssemblyFile='bin\Debug\netstandard2.0\msbuild-interceptor.dll' TaskName='msbuild_interceptor.AvalonStudioTask' />
+ <UsingTask AssemblyFile='bin\Debug\netstandard1.3\AvalonStudio.MSBuildHost.dll' TaskName='AvalonStudio.MSBuildHost.AvalonStudioTask' />
  <Target Name='InterceptorTarget'>
   <AvalonStudioTask />
  </Target>

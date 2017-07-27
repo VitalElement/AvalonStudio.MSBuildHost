@@ -11,23 +11,18 @@ namespace AvalonStudio.MSBuildHost
 {
     public class AvalonStudioTask : ITask
     {
-        public interface IService
+        class Service : IMsBuildHostService
         {
-            Task<string> Foo(int);
-        }
-
-        class Service : IService
-        {
-            public Task<string> Foo(int  bar)
+            public Task<Version> GetVersion()
             {
-                return Task.FromResult(bar.ToString());
+                return Task.FromResult(Version.Parse("1.02"));
             }
         }
 
         private static void StartSever()
         {
             var router = new DefaultTargetSelector();
-            router.Register<IService, Service>();
+            router.Register<IMsBuildHostService, Service>();
 
             var host = new TcpHost(new Engine().CreateRequestHandler(router));
             host.StartListening(new System.Net.IPEndPoint(IPAddress.Loopback, 9000));
@@ -51,7 +46,7 @@ namespace AvalonStudio.MSBuildHost
                 Console.WriteLine("Hello from BuildTask");
 
                 // GenerateAssemblyInfo,_CheckForInvalidConfigurationAndPlatform,BuildOnlySettings,GetFrameworkPaths,BeforeResolveReferences,ResolveAssemblyReferences,ResolveComReferences,ImplicitlyExpandDesignTimeFacades,ResolveSDKReferences
-                BuildEngine.BuildProjectFile(@"C:\Users\dan\Documents\GitHub\Avalonia\samples\ControlCatalog.Desktop\ControlCatalog.Desktop.csproj", new[] { "GenerateAssemblyInfo", "_CheckForInvalidConfigurationAndPlatform", "BuildOnlySettings", "GetFrameworkPaths", "BeforeResolveReferences", "ResolveAssemblyReferences", "ResolveComReferences", "ResolveSDKReferences" }, properties, outputs);
+                BuildEngine.BuildProjectFile(@"c:\dev\repos\AvalonStudio\AvalonStudio\AvalonStudio\AvalonStudio.csproj", new[] { "GenerateAssemblyInfo", "_CheckForInvalidConfigurationAndPlatform", "BuildOnlySettings", "GetFrameworkPaths", "BeforeResolveReferences", "ResolveAssemblyReferences", "ResolveComReferences", "ResolveSDKReferences" }, properties, outputs);
 
                 foreach(var output in outputs)
                 {
