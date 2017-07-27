@@ -4,25 +4,54 @@ using AsyncRpc.Transport.Tcp;
 using Microsoft.Build.Framework;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 
 namespace AvalonStudio.MSBuildHost
 {
-    public class AvalonStudioTask : ITask
+    public class MsBuildHostServiceResponse<T>
     {
-        class Service : IMsBuildHostService
+        public string Response { get; set; }
+
+        public T Data { get; set; }
+    }
+
+    public class MSBuildHostService : IMsBuildHostService
+    {
+        private IBuildEngine _buildEngine;
+
+        public MSBuildHostService(IBuildEngine buildEngine)
         {
-            public Task<Version> GetVersion()
-            {
-                return Task.FromResult(Version.Parse("1.02"));
-            }
+            _buildEngine = buildEngine;
         }
 
-        private static void StartSever()
+        public Task<MsBuildHostServiceResponse<List<string>>> GetReferences(string projectFile)
+        {
+            var outputs = new Dictionary<string, ITaskItem[]>();
+            var properties = new Dictionary<string, string>
+            {
+                    { "TargetFramework", "netcoreapp2.0" }
+            };
+
+            // GenerateAssemblyInfo,_CheckForInvalidConfigurationAndPlatform,BuildOnlySettings,GetFrameworkPaths,BeforeResolveReferences,ResolveAssemblyReferences,ResolveComReferences,ImplicitlyExpandDesignTimeFacades,ResolveSDKReferences
+            _buildEngine.BuildProjectFile(projectFile, new[] { "GenerateAssemblyInfo", "_CheckForInvalidConfigurationAndPlatform", "BuildOnlySettings", "GetFrameworkPaths", "BeforeResolveReferences", "ResolveAssemblyReferences", "ResolveComReferences", "ResolveSDKReferences" }, properties, outputs);
+
+            return Task.FromResult(new MsBuildHostServiceResponse<List<string>> { Response = "OK", Data = outputs["ResolveAssemblyReferences"].Select(ti => ti.ItemSpec).ToList() });
+        }
+
+        public Task<string> GetVersion()
+        {
+            return Task.FromResult("1.02");
+        }
+    }
+
+    public class AvalonStudioTask : ITask
+    {
+        private static void StartSever(IBuildEngine buildEngine)
         {
             var router = new DefaultTargetSelector();
-            router.Register<IMsBuildHostService, Service>();
+            router.Register<IMsBuildHostService, MSBuildHostService>(new MSBuildHostService(buildEngine));
 
             var host = new TcpHost(new Engine().CreateRequestHandler(router));
             host.StartListening(new System.Net.IPEndPoint(IPAddress.Loopback, 9000));
@@ -33,32 +62,11 @@ namespace AvalonStudio.MSBuildHost
 
         public bool Execute()
         {
-            StartSever();
+            StartSever(BuildEngine);
 
-            while(true)
+            while (true)
             {
-                var outputs = new Dictionary<string, ITaskItem[]>();
-                var properties = new Dictionary<string, string>
-                {
-                    { "TargetFramework", "netcoreapp2.0" }
-                };
-
-                Console.WriteLine("Hello from BuildTask");
-
-                // GenerateAssemblyInfo,_CheckForInvalidConfigurationAndPlatform,BuildOnlySettings,GetFrameworkPaths,BeforeResolveReferences,ResolveAssemblyReferences,ResolveComReferences,ImplicitlyExpandDesignTimeFacades,ResolveSDKReferences
-                BuildEngine.BuildProjectFile(@"c:\dev\repos\AvalonStudio\AvalonStudio\AvalonStudio\AvalonStudio.csproj", new[] { "GenerateAssemblyInfo", "_CheckForInvalidConfigurationAndPlatform", "BuildOnlySettings", "GetFrameworkPaths", "BeforeResolveReferences", "ResolveAssemblyReferences", "ResolveComReferences", "ResolveSDKReferences" }, properties, outputs);
-
-                foreach(var output in outputs)
-                {
-                    Console.WriteLine($"{output.Key}: {output.Value.Length}");
-
-                    foreach(var item in output.Value)
-                    {
-                        Console.WriteLine(item.ItemSpec);
-                    }
-                }
-
-                if(Console.ReadKey().Key == ConsoleKey.Escape)
+                if (Console.ReadKey().Key == ConsoleKey.Escape)
                 {
                     break;
                 }

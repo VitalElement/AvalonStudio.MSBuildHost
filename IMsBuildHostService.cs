@@ -7,6 +7,8 @@ namespace AvalonStudio.MSBuildHost
 {
     public interface IMsBuildHostService
     {
-        Task<Version> GetVersion();
+        Task<string> GetVersion();
+
+        Task<MsBuildHostServiceResponse<List<string>>> GetReferences(string projectFile);
     }
 }
