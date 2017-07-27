@@ -1,3 +1,3 @@
 [submodule "modules/AsyncRpc"]
 	path = modules/AsyncRpc
-	url = https://github.com/kekekeks/AsyncRpc.git
+	url = https://github.com/VitalElement/AsyncRpc.git
