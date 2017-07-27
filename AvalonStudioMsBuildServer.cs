@@ -1,16 +1,45 @@
-﻿using Microsoft.Build.Framework;
+﻿using AsyncRpc;
+using AsyncRpc.Routing;
+using AsyncRpc.Transport.Tcp;
+using Microsoft.Build.Framework;
 using System;
 using System.Collections.Generic;
+using System.Net;
+using System.Threading.Tasks;
 
 namespace AvalonStudio.MSBuildHost
 {
     public class AvalonStudioTask : ITask
     {
+        public interface IService
+        {
+            Task<string> Foo(int);
+        }
+
+        class Service : IService
+        {
+            public Task<string> Foo(int  bar)
+            {
+                return Task.FromResult(bar.ToString());
+            }
+        }
+
+        private static void StartSever()
+        {
+            var router = new DefaultTargetSelector();
+            router.Register<IService, Service>();
+
+            var host = new TcpHost(new Engine().CreateRequestHandler(router));
+            host.StartListening(new System.Net.IPEndPoint(IPAddress.Loopback, 9000));
+        }
+
         public IBuildEngine BuildEngine { get; set; }
         public ITaskHost HostObject { get; set; }
 
         public bool Execute()
         {
+            StartSever();
+
             while(true)
             {
                 var outputs = new Dictionary<string, ITaskItem[]>();
