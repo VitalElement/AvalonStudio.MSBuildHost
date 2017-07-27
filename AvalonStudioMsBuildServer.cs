@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace msbuild_interceptor
+namespace AvalonStudio.MSBuildHost
 {
     public class AvalonStudioTask : ITask
     {

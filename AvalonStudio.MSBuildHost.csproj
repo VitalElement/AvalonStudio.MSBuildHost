@@ -5,7 +5,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="modules\**" />
+    <EmbeddedResource Remove="modules\**" />
+    <None Remove="modules\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.Build.Tasks.Core" Version="15.3.0-preview-000388-01" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="modules\AsyncRpc\AsyncRpc\AsyncRpc.csproj" />
   </ItemGroup>
 
 </Project>
