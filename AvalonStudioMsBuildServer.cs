@@ -59,31 +59,35 @@ namespace AvalonStudio.MSBuildHost
         public Task<MsBuildHostServiceResponse<TaskItems>> GetTaskItem(string target, string projectFile)
         {
             var outputs = new Dictionary<string, ITaskItem[]>();
+
             var properties = new Dictionary<string, string>
             {
-                    { "TargetFramework", "netcoreapp2.0" }
+                    //{ "TargetFramework", "netcoreapp2.0" }
             };
-
+            
             // GenerateAssemblyInfo,_CheckForInvalidConfigurationAndPlatform,BuildOnlySettings,GetFrameworkPaths,BeforeResolveReferences,ResolveAssemblyReferences,ResolveComReferences,ImplicitlyExpandDesignTimeFacades,ResolveSDKReferences
             _buildEngine.BuildProjectFile(projectFile, new[] { "GenerateAssemblyInfo", "_CheckForInvalidConfigurationAndPlatform", "BuildOnlySettings", "GetFrameworkPaths", "BeforeResolveReferences", target, "ResolveComReferences", "ResolveSDKReferences" }, properties, outputs);
 
             var result = new TaskItems { Target = target };
 
-            foreach (var item in outputs[target])
+            if (outputs.ContainsKey(target))
             {
-                var taskItem = new TaskItem
+                foreach (var item in outputs[target])
                 {
-                    ItemSpec = item.ItemSpec
-                };
+                    var taskItem = new TaskItem
+                    {
+                        ItemSpec = item.ItemSpec
+                    };
 
-                foreach (string metaData in item.MetadataNames)
-                {
-                    var metaDataObj = new ProjectTaskMetaData { Name = metaData.Replace("\0", ""), Value = item.GetMetadata(metaData).Replace("\0", "") };
+                    foreach (string metaData in item.MetadataNames)
+                    {
+                        var metaDataObj = new ProjectTaskMetaData { Name = metaData.Replace("\0", ""), Value = item.GetMetadata(metaData).Replace("\0", "") };
 
-                    taskItem.Metadatas.Add(metaDataObj);
+                        taskItem.Metadatas.Add(metaDataObj);
+                    }
+
+                    result.Items.Add(taskItem);
                 }
-
-                result.Items.Add(taskItem);
             }
 
             return Task.FromResult(new MsBuildHostServiceResponse<TaskItems> { Response = "OK", Data = result });
