@@ -2,11 +2,14 @@
 using AsyncRpc.Routing;
 using AsyncRpc.Transport.Tcp;
 using Microsoft.Build.Framework;
+using Microsoft.Build.Tasks;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
+using System.Xml;
+using System.Xml.Linq;
 
 namespace AvalonStudio.MSBuildHost
 {
@@ -62,11 +65,21 @@ namespace AvalonStudio.MSBuildHost
 
             var properties = new Dictionary<string, string>
             {
-                    //{ "TargetFramework", "netcoreapp2.0" }
+                //{ "TargetFramework", "netcoreapp2.0" }
             };
-            
-            // GenerateAssemblyInfo,_CheckForInvalidConfigurationAndPlatform,BuildOnlySettings,GetFrameworkPaths,BeforeResolveReferences,ResolveAssemblyReferences,ResolveComReferences,ImplicitlyExpandDesignTimeFacades,ResolveSDKReferences
-            _buildEngine.BuildProjectFile(projectFile, new[] { "GenerateAssemblyInfo", "_CheckForInvalidConfigurationAndPlatform", "BuildOnlySettings", "GetFrameworkPaths", "BeforeResolveReferences", target, "ResolveComReferences", "ResolveSDKReferences" }, properties, outputs);
+
+            bool fullFramework = true;
+
+            using (var textReader = XmlReader.Create(projectFile))
+            {
+                if(textReader.ReadToFollowing("Project"))
+                {
+                    fullFramework = textReader.GetAttribute("Sdk") == null;
+                }
+            }
+
+            var buildTargets = fullFramework ? new[] { "_CheckForInvalidConfigurationAndPlatform", "BuildOnlySettings", "GetFrameworkPaths", "BeforeResolveReferences", target, "ResolveComReferences", "ResolveSDKReferences" } : new[] { "GenerateAssemblyInfo", "_CheckForInvalidConfigurationAndPlatform", "BuildOnlySettings", "GetFrameworkPaths", "BeforeResolveReferences", target, "ResolveComReferences", "ResolveSDKReferences" };
+            _buildEngine.BuildProjectFile(projectFile, buildTargets, properties, outputs);
 
             var result = new TaskItems { Target = target };
 
@@ -93,7 +106,7 @@ namespace AvalonStudio.MSBuildHost
             return Task.FromResult(new MsBuildHostServiceResponse<TaskItems> { Response = "OK", Data = result });
         }
 
-        public Task<MsBuildHostServiceResponse<List<string>>> GetReferences(string projectFile)
+        public Task<MsBuildHostServiceResponse<List<string>>> GetAssemblyReferences(string projectFile)
         {
             var outputs = new Dictionary<string, ITaskItem[]>();
             var properties = new Dictionary<string, string>
@@ -123,6 +136,15 @@ namespace AvalonStudio.MSBuildHost
         public Task<string> GetVersion()
         {
             return Task.FromResult("1.02");
+        }
+
+        public Task<MsBuildHostServiceResponse<List<string>>> GetProjectReferences(string projectFile)
+        {
+            var document = XDocument.Load(projectFile);
+
+            var references = document.Descendants("ProjectReference").Select(e => e.Attribute("Include").Value).ToList();
+
+            return Task.FromResult(new MsBuildHostServiceResponse<List<string>> { Response = "OK", Data = references });
         }
     }
 

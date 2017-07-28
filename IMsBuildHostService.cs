@@ -9,7 +9,9 @@ namespace AvalonStudio.MSBuildHost
     {
         Task<string> GetVersion();
 
-        Task<MsBuildHostServiceResponse<List<string>>> GetReferences(string projectFile);
+        Task<MsBuildHostServiceResponse<List<string>>> GetAssemblyReferences(string projectFile);
+
+        Task<MsBuildHostServiceResponse<List<string>>> GetProjectReferences(string projectFile);
 
         Task<MsBuildHostServiceResponse<TaskItems>> GetTaskItem(string target, string projectFile);
     }
