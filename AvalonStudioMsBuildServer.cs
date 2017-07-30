@@ -59,14 +59,16 @@ namespace AvalonStudio.MSBuildHost
             _buildEngine = buildEngine;
         }
 
-        public Task<MsBuildHostServiceResponse<TaskItems>> GetTaskItem(string target, string projectFile)
+        public Task<MsBuildHostServiceResponse<TaskItems>> GetTaskItem(string target, string projectFile, List<Property> properties)
         {
             var outputs = new Dictionary<string, ITaskItem[]>();
 
-            var properties = new Dictionary<string, string>
+            var props = new Dictionary<string, string>();
+            
+            foreach(var prop in properties)
             {
-                //{ "TargetFramework", "netcoreapp2.0" }
-            };
+                props.Add(prop.Key, prop.Value);
+            }
 
             bool fullFramework = true;
 
@@ -79,7 +81,7 @@ namespace AvalonStudio.MSBuildHost
             }
 
             var buildTargets = fullFramework ? new[] { "_CheckForInvalidConfigurationAndPlatform", "BuildOnlySettings", "GetFrameworkPaths", "BeforeResolveReferences", target, "ResolveComReferences", "ResolveSDKReferences" } : new[] { "GenerateAssemblyInfo", "_CheckForInvalidConfigurationAndPlatform", "BuildOnlySettings", "GetFrameworkPaths", "BeforeResolveReferences", target, "ResolveComReferences", "ResolveSDKReferences" };
-            _buildEngine.BuildProjectFile(projectFile, buildTargets, properties, outputs);
+            _buildEngine.BuildProjectFile(projectFile, buildTargets, props, outputs);
 
             var result = new TaskItems { Target = target };
 
@@ -115,7 +117,7 @@ namespace AvalonStudio.MSBuildHost
             };
 
             // GenerateAssemblyInfo,_CheckForInvalidConfigurationAndPlatform,BuildOnlySettings,GetFrameworkPaths,BeforeResolveReferences,ResolveAssemblyReferences,ResolveComReferences,ImplicitlyExpandDesignTimeFacades,ResolveSDKReferences
-            _buildEngine.BuildProjectFile(projectFile, new[] { "GenerateAssemblyInfo", "_CheckForInvalidConfigurationAndPlatform", "BuildOnlySettings", "GetFrameworkPaths", "BeforeResolveReferences", "ResolveAssemblyReferences", "ResolveComReferences", "ResolveSDKReferences" }, properties, outputs);
+            _buildEngine.BuildProjectFile(projectFile, new[] { "GenerateAssemblyInfo", "_CheckForInvalidConfigurationAndPlatform", "BuildOnlySettings", "GetFrameworkPaths", "BeforeResolveReferences", "ResolveAssemblyReferences", "ResolveComReferences", "ResolveSDKReferences", "GetOutputs" }, properties, outputs);
 
             foreach (var taskItem in outputs)
             {
@@ -145,6 +147,31 @@ namespace AvalonStudio.MSBuildHost
             var references = document.Descendants("ProjectReference").Select(e => e.Attribute("Include").Value).ToList();
 
             return Task.FromResult(new MsBuildHostServiceResponse<List<string>> { Response = "OK", Data = references });
+        }
+
+        public Task<MsBuildHostServiceResponse<List<string>>> GetProjectFrameworks(string projectFile)
+        {
+            var document = XDocument.Load(projectFile);
+
+            var targetFramework = document.Descendants("TargetFramework").FirstOrDefault();
+            var targetFrameworks = document.Descendants("TargetFrameworks");
+
+            var result = new List<string>();
+
+            if(targetFramework != null)
+            {
+                result.Add(targetFramework.Value);
+            }
+
+            if(targetFrameworks != null)
+            {
+                foreach(var framework in targetFrameworks)
+                {
+                    result.Add(framework.Value);
+                }
+            }
+
+            return Task.FromResult(new MsBuildHostServiceResponse<List<string>> { Response = "OK", Data = result });
         }
     }
 
