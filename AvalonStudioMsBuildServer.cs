@@ -80,8 +80,9 @@ namespace AvalonStudio.MSBuildHost
                 }
             }
 
-            var buildTargets = fullFramework ? new[] { "_CheckForInvalidConfigurationAndPlatform", "BuildOnlySettings", "GetFrameworkPaths", "BeforeResolveReferences", target, "ResolveComReferences", "ResolveSDKReferences" } : new[] { "GenerateAssemblyInfo", "_CheckForInvalidConfigurationAndPlatform", "BuildOnlySettings", "GetFrameworkPaths", "BeforeResolveReferences", target, "ResolveComReferences", "ResolveSDKReferences" };
-            _buildEngine.BuildProjectFile(projectFile, buildTargets, props, outputs);
+            var buildTargets = new[] { "Compile" };
+            _buildEngine.BuildProjectFile(projectFile, buildTargets, props, outputs);                
+                       
 
             var result = new TaskItems { Target = target };
 
