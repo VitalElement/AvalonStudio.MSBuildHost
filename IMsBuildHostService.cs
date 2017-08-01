@@ -13,12 +13,15 @@ namespace AvalonStudio.MSBuildHost
     {
         Task<string> GetVersion();
 
-        Task<MsBuildHostServiceResponse<List<string>>> GetAssemblyReferences(string projectFile);
+        /// <summary>
+        /// Loads a project in MSBuild and processes it without Compiling.
+        /// The compile string will be output on the command line of the host.
+        /// </summary>
+        /// <param name="projectFile">.csproj file location</param>
+        /// <param name="properties">properties to set during load.</param>
+        /// <returns>A list of Assembly References.</returns>
+        Task<(List<MetaDataReference> metaDataReferences, List<string> projectReferences)> LoadProject(string solutionDirectory, string projectFile);
 
-        Task<MsBuildHostServiceResponse<List<string>>> GetProjectFrameworks(string projectFile);
-
-        Task<MsBuildHostServiceResponse<List<string>>> GetProjectReferences(string projectFile);
-
-        Task<MsBuildHostServiceResponse<TaskItems>> GetTaskItem(string target, string projectFile, List<Property> properties);
+        void Shutdown();
     }
 }

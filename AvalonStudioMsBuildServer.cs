@@ -5,135 +5,91 @@ using Microsoft.Build.Framework;
 using Microsoft.Build.Tasks;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
 
 namespace AvalonStudio.MSBuildHost
 {
-    public class MsBuildHostServiceResponse<T>
-    {
-        public string Response { get; set; }
-
-        public T Data { get; set; }
-    }
-
     public class ProjectTaskMetaData
     {
         public string Name { get; set; }
         public string Value { get; set; }
     }
 
-    public class TaskItem
+    public class MetaDataReference
     {
-        public TaskItem()
-        {
-            Metadatas = new List<ProjectTaskMetaData>();
-        }
-
-        public string ItemSpec { get; set; }
-
-        public List<ProjectTaskMetaData> Metadatas { get; set; }
-    }
-
-    public class TaskItems
-    {
-        public TaskItems()
-        {
-            Items = new List<TaskItem>();
-        }
-
-        public string Target { get; set; }
-
-        public List<TaskItem> Items { get; set; }
+        public string Assembly { get; set; }
+        public List<ProjectTaskMetaData> MetaData { get; set; } = new List<ProjectTaskMetaData>();
     }
 
     public class MSBuildHostService : IMsBuildHostService
     {
         private IBuildEngine _buildEngine;
+        private TaskCompletionSource<bool> _serverCompleted;
 
         public MSBuildHostService(IBuildEngine buildEngine)
         {
             _buildEngine = buildEngine;
+            _serverCompleted = new TaskCompletionSource<bool>();
         }
 
-        public Task<MsBuildHostServiceResponse<TaskItems>> GetTaskItem(string target, string projectFile, List<Property> properties)
+        public Task<bool> ServerTask => _serverCompleted.Task;
+
+        public Task<(List<MetaDataReference> metaDataReferences, List<string> projectReferences)> LoadProject(string solutionDirectory, string projectFile)
         {
             var outputs = new Dictionary<string, ITaskItem[]>();
 
-            var props = new Dictionary<string, string>();
-            
-            foreach(var prop in properties)
+            var props = new Dictionary<string, string>
             {
-                props.Add(prop.Key, prop.Value);
-            }
+                { "DesignTimeBuild", "true" },
+                { "BuildProjectReferences",  "false" },
+                { "_ResolveReferenceDependencies",  "true" },
+                { "SolutionDir",  solutionDirectory },
+                {  "ProvideCommandLineInvocation",  "true" },
+                {  "SkipCompilerExecution",  "true" }
+            };
 
-            bool fullFramework = true;
+            /*bool fullFramework = true;
 
             using (var textReader = XmlReader.Create(projectFile))
             {
-                if(textReader.ReadToFollowing("Project"))
+                if (textReader.ReadToFollowing("Project"))
                 {
                     fullFramework = textReader.GetAttribute("Sdk") == null;
                 }
-            }
+            }*/
+            var document = XDocument.Load(projectFile);
 
-            var buildTargets = new[] { "Compile" };
-            _buildEngine.BuildProjectFile(projectFile, buildTargets, props, outputs);                
-                       
+            var projectReferences = document.Descendants("ProjectReference").Select(e => e.Attribute("Include").Value).ToList();
 
-            var result = new TaskItems { Target = target };
+            _buildEngine.BuildProjectFile(projectFile, new[] { "ResolveAssemblyReferences", "Compile" }, props, outputs);
 
-            if (outputs.ContainsKey(target))
+            var metaDataReferences = new List<MetaDataReference>();
+
+            if (outputs.ContainsKey("ResolveAssemblyReferences"))
             {
-                foreach (var item in outputs[target])
+                foreach (var item in outputs["ResolveAssemblyReferences"])
                 {
-                    var taskItem = new TaskItem
-                    {
-                        ItemSpec = item.ItemSpec
-                    };
+                    var reference = new MetaDataReference { Assembly = item.ItemSpec };
 
                     foreach (string metaData in item.MetadataNames)
                     {
                         var metaDataObj = new ProjectTaskMetaData { Name = metaData.Replace("\0", ""), Value = item.GetMetadata(metaData).Replace("\0", "") };
 
-                        taskItem.Metadatas.Add(metaDataObj);
+                        reference.MetaData.Add(metaDataObj);
                     }
 
-                    result.Items.Add(taskItem);
+                    metaDataReferences.Add(reference);
                 }
             }
 
-            return Task.FromResult(new MsBuildHostServiceResponse<TaskItems> { Response = "OK", Data = result });
-        }
-
-        public Task<MsBuildHostServiceResponse<List<string>>> GetAssemblyReferences(string projectFile)
-        {
-            var outputs = new Dictionary<string, ITaskItem[]>();
-            var properties = new Dictionary<string, string>
-            {
-                    { "TargetFramework", "netcoreapp2.0" }
-            };
-
-            // GenerateAssemblyInfo,_CheckForInvalidConfigurationAndPlatform,BuildOnlySettings,GetFrameworkPaths,BeforeResolveReferences,ResolveAssemblyReferences,ResolveComReferences,ImplicitlyExpandDesignTimeFacades,ResolveSDKReferences
-            _buildEngine.BuildProjectFile(projectFile, new[] { "GenerateAssemblyInfo", "_CheckForInvalidConfigurationAndPlatform", "BuildOnlySettings", "GetFrameworkPaths", "BeforeResolveReferences", "ResolveAssemblyReferences", "ResolveComReferences", "ResolveSDKReferences", "GetOutputs" }, properties, outputs);
-
-            foreach (var taskItem in outputs)
-            {
-                foreach (var item in taskItem.Value)
-                {
-                    Console.Write(item.ItemSpec);
-
-                    foreach (string metaData in item.MetadataNames)
-                    {
-                        Console.WriteLine($"{metaData}:{item.GetMetadata(metaData)}");
-                    }
-                }
-            }
-
-            return Task.FromResult(new MsBuildHostServiceResponse<List<string>> { Response = "OK", Data = outputs["ResolveAssemblyReferences"].Select(ti => ti.ItemSpec).ToList() });
+            return Task.FromResult((metaDataReferences, projectReferences));
         }
 
         public Task<string> GetVersion()
@@ -141,50 +97,30 @@ namespace AvalonStudio.MSBuildHost
             return Task.FromResult("1.02");
         }
 
-        public Task<MsBuildHostServiceResponse<List<string>>> GetProjectReferences(string projectFile)
+        public void Shutdown()
         {
-            var document = XDocument.Load(projectFile);
-
-            var references = document.Descendants("ProjectReference").Select(e => e.Attribute("Include").Value).ToList();
-
-            return Task.FromResult(new MsBuildHostServiceResponse<List<string>> { Response = "OK", Data = references });
-        }
-
-        public Task<MsBuildHostServiceResponse<List<string>>> GetProjectFrameworks(string projectFile)
-        {
-            var document = XDocument.Load(projectFile);
-
-            var targetFramework = document.Descendants("TargetFramework").FirstOrDefault();
-            var targetFrameworks = document.Descendants("TargetFrameworks");
-
-            var result = new List<string>();
-
-            if(targetFramework != null)
-            {
-                result.Add(targetFramework.Value);
-            }
-
-            if(targetFrameworks != null)
-            {
-                foreach(var framework in targetFrameworks)
-                {
-                    result.Add(framework.Value);
-                }
-            }
-
-            return Task.FromResult(new MsBuildHostServiceResponse<List<string>> { Response = "OK", Data = result });
+            _serverCompleted.SetResult(true);
         }
     }
 
     public class AvalonStudioTask : ITask
     {
-        private static void StartSever(IBuildEngine buildEngine)
+        private static Task<bool> StartSever(IBuildEngine buildEngine)
         {
             var router = new DefaultTargetSelector();
-            router.Register<IMsBuildHostService, MSBuildHostService>(new MSBuildHostService(buildEngine));
 
-            var host = new TcpHost(new Engine().CreateRequestHandler(router));
-            host.StartListening(new System.Net.IPEndPoint(IPAddress.Loopback, 9000));
+            var host = new MSBuildHostService(buildEngine);
+            var result = host.ServerTask;
+
+            router.Register<IMsBuildHostService, MSBuildHostService>(host);
+
+            var tcpHost = new TcpHost(new Engine().CreateRequestHandler(router));
+
+            result.ContinueWith(_ => { tcpHost.StopListening(); });
+
+            tcpHost.StartListening(new System.Net.IPEndPoint(IPAddress.Loopback, 9000));
+
+            return result;
         }
 
         public IBuildEngine BuildEngine { get; set; }
@@ -192,15 +128,7 @@ namespace AvalonStudio.MSBuildHost
 
         public bool Execute()
         {
-            StartSever(BuildEngine);
-
-            while (true)
-            {
-                if (Console.ReadKey().Key == ConsoleKey.Escape)
-                {
-                    break;
-                }
-            }
+            StartSever(BuildEngine).Wait();
 
             return true;
         }
