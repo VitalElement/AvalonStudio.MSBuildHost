@@ -41,8 +41,9 @@ namespace AvalonStudio.MSBuildHost
 
         public Task<bool> ServerTask => _serverCompleted.Task;
 
-        public Task<(List<MetaDataReference> metaDataReferences, List<string> projectReferences)> LoadProject(string solutionDirectory, string projectFile)
+        public async Task<(List<MetaDataReference> metaDataReferences, List<string> projectReferences)> LoadProject(string solutionDirectory, string projectFile, string targetFramework = null)
         {
+            Console.WriteLine($"Loading Project: {Path.GetFileName(projectFile)}");
             var outputs = new Dictionary<string, ITaskItem[]>();
 
             var props = new Dictionary<string, string>
@@ -64,32 +65,59 @@ namespace AvalonStudio.MSBuildHost
                     fullFramework = textReader.GetAttribute("Sdk") == null;
                 }
             }*/
+
             var document = XDocument.Load(projectFile);
 
             var projectReferences = document.Descendants("ProjectReference").Select(e => e.Attribute("Include").Value).ToList();
 
-            _buildEngine.BuildProjectFile(projectFile, new[] { "ResolveAssemblyReferences", "Compile" }, props, outputs);
-
-            var metaDataReferences = new List<MetaDataReference>();
-
-            if (outputs.ContainsKey("ResolveAssemblyReferences"))
+            if(targetFramework == null)
             {
-                foreach (var item in outputs["ResolveAssemblyReferences"])
+                var frameworks = await GetTargetFrameworks(projectFile);
+
+                targetFramework = frameworks.FirstOrDefault();
+
+                if(targetFramework != null)
                 {
-                    var reference = new MetaDataReference { Assembly = item.ItemSpec };
-
-                    foreach (string metaData in item.MetadataNames)
-                    {
-                        var metaDataObj = new ProjectTaskMetaData { Name = metaData.Replace("\0", ""), Value = item.GetMetadata(metaData).Replace("\0", "") };
-
-                        reference.MetaData.Add(metaDataObj);
-                    }
-
-                    metaDataReferences.Add(reference);
+                    Console.WriteLine($"Automatically selecting {targetFramework} as TargetFramework");
+                    props.Add("TargetFramework", targetFramework);
                 }
             }
+            else
+            {
+                Console.WriteLine($"Manually selecting {targetFramework} as TargetFramework");
+            }
 
-            return Task.FromResult((metaDataReferences, projectReferences));
+            if(_buildEngine.BuildProjectFile(projectFile, new[] { "ResolveAssemblyReferences", "Compile" }, props, outputs))
+            {
+                Console.WriteLine("Project loaded successfully");
+
+                var metaDataReferences = new List<MetaDataReference>();
+
+                if (outputs.ContainsKey("ResolveAssemblyReferences"))
+                {
+                    foreach (var item in outputs["ResolveAssemblyReferences"])
+                    {
+                        var reference = new MetaDataReference { Assembly = item.ItemSpec };
+
+                        foreach (string metaData in item.MetadataNames)
+                        {
+                            var metaDataObj = new ProjectTaskMetaData { Name = metaData.Replace("\0", ""), Value = item.GetMetadata(metaData).Replace("\0", "") };
+
+                            reference.MetaData.Add(metaDataObj);
+                        }
+
+                        metaDataReferences.Add(reference);
+                    }
+                }
+
+                return (metaDataReferences, projectReferences);
+            }
+            else
+            {
+                Console.WriteLine("Project load failed.");
+
+                return (null, null);
+            }
         }
 
         public Task<string> GetVersion()
@@ -100,6 +128,31 @@ namespace AvalonStudio.MSBuildHost
         public void Shutdown()
         {
             _serverCompleted.SetResult(true);
+        }
+
+        public Task<List<string>> GetTargetFrameworks(string projectFile)
+        {
+            var document = XDocument.Load(projectFile);
+
+            var targetFramework = document.Descendants("TargetFramework").FirstOrDefault();
+            var targetFrameworks = document.Descendants("TargetFrameworks");
+
+            var result = new List<string>();
+
+            if (targetFramework != null)
+            {
+                result.Add(targetFramework.Value);
+            }
+
+            if (targetFrameworks != null)
+            {
+                foreach (var framework in targetFrameworks)
+                {
+                    result.Add(framework.Value);
+                }
+            }
+
+            return Task.FromResult(result);
         }
     }
 
