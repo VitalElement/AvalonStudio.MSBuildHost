@@ -148,7 +148,12 @@ namespace AvalonStudio.MSBuildHost
             {
                 foreach (var framework in targetFrameworks)
                 {
-                    result.Add(framework.Value);
+                    var frameworks = framework.Value.Split(';');
+
+                    foreach (var value in frameworks)
+                    {
+                        result.Add(value);
+                    }
                 }
             }
 
