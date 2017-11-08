@@ -178,6 +178,8 @@ namespace AvalonStudio.MSBuildHost
 
             tcpHost.StartListening(new System.Net.IPEndPoint(IPAddress.Loopback, 9000));
 
+            Console.WriteLine("AvalonStudio MSBuild Host Started:");
+
             return result;
         }
 
