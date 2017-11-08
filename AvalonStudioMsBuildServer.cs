@@ -41,7 +41,7 @@ namespace AvalonStudio.MSBuildHost
 
         public Task<bool> ServerTask => _serverCompleted.Task;
 
-        public async Task<(List<MetaDataReference> metaDataReferences, List<string> projectReferences)> LoadProject(string solutionDirectory, string projectFile, string targetFramework = null)
+        public async Task<MsBuildProjectInformation> LoadProject(string solutionDirectory, string projectFile, string targetFramework = null)
         {
             Console.WriteLine($"Loading Project: {Path.GetFileName(projectFile)}");
             var outputs = new Dictionary<string, ITaskItem[]>();
@@ -86,8 +86,7 @@ namespace AvalonStudio.MSBuildHost
             {
                 Console.WriteLine($"Manually selecting {targetFramework} as TargetFramework");
             }
-
-            if(_buildEngine.BuildProjectFile(projectFile, new[] { "ResolveAssemblyReferences", "Compile" }, props, outputs))
+            if(_buildEngine.BuildProjectFile(projectFile, new[] { "ResolveAssemblyReferences", "GetTargetPath", "Compile" }, props, outputs))
             {
                 Console.WriteLine("Project loaded successfully");
 
@@ -109,14 +108,24 @@ namespace AvalonStudio.MSBuildHost
                         metaDataReferences.Add(reference);
                     }
                 }
+                string targetPath = null;
+                if (outputs.TryGetValue("GetTargetPath", out var targetPathOutput) && targetPathOutput.Length > 0)
+                    targetPath = targetPathOutput[0].ItemSpec;
+                    
+                
 
-                return (metaDataReferences, projectReferences);
+                return new MsBuildProjectInformation
+                {
+                    MetaDataReferences = metaDataReferences,
+                    ProjectReferences = projectReferences,
+                    TargetPath = targetPath
+                };
             }
             else
             {
                 Console.WriteLine("Project load failed.");
 
-                return (null, null);
+                return null;
             }
         }
 
