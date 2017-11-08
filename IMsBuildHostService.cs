@@ -21,7 +21,7 @@ namespace AvalonStudio.MSBuildHost
         /// <param name="properties">properties to set during load.</param>
         /// <param name="targetFramework">the target framework to use.</param>
         /// <returns>A list of Assembly References.</returns>
-        Task<(List<MetaDataReference> metaDataReferences, List<string> projectReferences)> LoadProject(string solutionDirectory, string projectFile, string targetFrameworks = null);
+        Task<MsBuildProjectInformation> LoadProject(string solutionDirectory, string projectFile, string targetFrameworks = null);
 
         /// <summary>
         /// Returns a list of all target frameworks described by the project file.
@@ -31,5 +31,12 @@ namespace AvalonStudio.MSBuildHost
         Task<List<string>> GetTargetFrameworks(string projectFile);
 
         void Shutdown();
+    }
+
+    public class MsBuildProjectInformation
+    {
+        public List<MetaDataReference> MetaDataReferences { get; set; }
+        public List<string> ProjectReferences { get; set; }
+        public string TargetPath { get; set; }
     }
 }
