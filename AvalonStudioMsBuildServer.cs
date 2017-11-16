@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Xml;
@@ -172,6 +173,15 @@ namespace AvalonStudio.MSBuildHost
 
     public class AvalonStudioTask : ITask
     {
+        private static int FreeTcpPort()
+        {
+            var l = new TcpListener(IPAddress.Loopback, 0);
+            l.Start();
+            int port = ((IPEndPoint)l.LocalEndpoint).Port;
+            l.Stop();
+            return port;
+        }
+
         private static Task<bool> StartSever(IBuildEngine buildEngine)
         {
             var router = new DefaultTargetSelector();
@@ -185,9 +195,11 @@ namespace AvalonStudio.MSBuildHost
 
             result.ContinueWith(_ => { tcpHost.StopListening(); });
 
-            tcpHost.StartListening(new System.Net.IPEndPoint(IPAddress.Loopback, 9000));
+            var port = FreeTcpPort();
 
-            Console.WriteLine("AvalonStudio MSBuild Host Started:");
+            tcpHost.StartListening(new System.Net.IPEndPoint(IPAddress.Loopback, port));
+
+            Console.WriteLine($"AvalonStudio MSBuild Host Started: {port}");
 
             return result;
         }
